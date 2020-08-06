@@ -984,10 +984,6 @@ JS_PUBLIC_API void js::gc::PerformIncrementalReadBarrier(JS::GCCellPtr thing) {
   // performing a read barrier. This means we can skip a bunch of checks and
   // call info the tracer directly.
 
-  AutoGeckoProfilerEntry profilingStackFrame(
-      TlsContext.get(), "PerformIncrementalReadBarrier",
-      JS::ProfilingCategoryPair::GCCC_Barrier);
-
   MOZ_ASSERT(thing);
   MOZ_ASSERT(!JS::RuntimeHeapIsMajorCollecting());
 
@@ -4273,8 +4269,7 @@ bool js::gc::UnmarkGrayGCThingUnchecked(JSRuntime* rt, JS::GCCellPtr thing) {
   MOZ_ASSERT(thing.asCell()->isMarkedGray());
 
   AutoGeckoProfilerEntry profilingStackFrame(
-      TlsContext.get(), "UnmarkGrayGCThing",
-      JS::ProfilingCategoryPair::GCCC_UnmarkGray);
+      TlsContext.get(), "UnmarkGrayGCThing", JS::ProfilingCategoryPair::GCCC);
 
   UnmarkGrayTracer unmarker(rt);
   unmarker.unmark(thing);

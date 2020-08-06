@@ -5567,8 +5567,6 @@ IncrementalProgress GCRuntime::markUntilBudgetExhausted(
     SliceBudget& sliceBudget, GCMarker::ShouldReportMarkTime reportTime) {
   // Run a marking slice and return whether the stack is now empty.
 
-  AutoMajorGCProfilerEntry s(this);
-
 #ifdef DEBUG
   AutoSetThreadIsMarking threadIsMarking;
 #endif  // DEBUG
@@ -6154,7 +6152,6 @@ bool GCRuntime::initSweepActions() {
 }
 
 IncrementalProgress GCRuntime::performSweepActions(SliceBudget& budget) {
-  AutoMajorGCProfilerEntry s(this);
   gcstats::AutoPhase ap(stats(), gcstats::PhaseKind::SWEEP);
   JSFreeOp fop(rt);
 
@@ -6280,7 +6277,6 @@ IncrementalProgress GCRuntime::compactPhase(JS::GCReason reason,
   assertBackgroundSweepingFinished();
   MOZ_ASSERT(startedCompacting);
 
-  AutoMajorGCProfilerEntry s(this);
   gcstats::AutoPhase ap(stats(), gcstats::PhaseKind::COMPACT);
 
   // TODO: JSScripts can move. If the sampler interrupts the GC in the
@@ -6394,13 +6390,6 @@ static const char* GCHeapStateToLabel(JS::HeapState heapState) {
   return nullptr;
 }
 
-static JS::ProfilingCategoryPair GCHeapStateToProfilingCategory(
-    JS::HeapState heapState) {
-  return heapState == JS::HeapState::MinorCollecting
-             ? JS::ProfilingCategoryPair::GCCC_MinorGC
-             : JS::ProfilingCategoryPair::GCCC_MajorGC;
-}
-
 /* Start a new heap session. */
 AutoHeapSession::AutoHeapSession(GCRuntime* gc, JS::HeapState heapState)
     : gc(gc), prevState(gc->heapState_) {
@@ -6414,49 +6403,13 @@ AutoHeapSession::AutoHeapSession(GCRuntime* gc, JS::HeapState heapState)
       heapState == JS::HeapState::MajorCollecting) {
     profilingStackFrame.emplace(gc->rt->mainContextFromOwnThread(),
                                 GCHeapStateToLabel(heapState),
-                                GCHeapStateToProfilingCategory(heapState));
+                                JS::ProfilingCategoryPair::GCCC);
   }
 }
 
 AutoHeapSession::~AutoHeapSession() {
   MOZ_ASSERT(JS::RuntimeHeapIsBusy());
   gc->heapState_ = prevState;
-}
-
-static const char* MajorGCStateToLabel(State state) {
-  switch (state) {
-    case State::Mark:
-      return "js::GCRuntime::markUntilBudgetExhausted";
-    case State::Sweep:
-      return "js::GCRuntime::performSweepActions";
-    case State::Compact:
-      return "js::GCRuntime::compactPhase";
-    default:
-      MOZ_CRASH("Unexpected heap state when pushing GC profiling stack frame");
-  }
-
-  MOZ_ASSERT_UNREACHABLE("Should have exhausted every State variant!");
-  return nullptr;
-}
-
-static JS::ProfilingCategoryPair MajorGCStateToProfilingCategory(State state) {
-  switch (state) {
-    case State::Mark:
-      return JS::ProfilingCategoryPair::GCCC_MajorGC_Mark;
-    case State::Sweep:
-      return JS::ProfilingCategoryPair::GCCC_MajorGC_Sweep;
-    case State::Compact:
-      return JS::ProfilingCategoryPair::GCCC_MajorGC_Compact;
-    default:
-      MOZ_CRASH("Unexpected heap state when pushing GC profiling stack frame");
-  }
-}
-
-AutoMajorGCProfilerEntry::AutoMajorGCProfilerEntry(GCRuntime* gc)
-    : AutoGeckoProfilerEntry(gc->rt->mainContextFromAnyThread(),
-                             MajorGCStateToLabel(gc->state()),
-                             MajorGCStateToProfilingCategory(gc->state())) {
-  MOZ_ASSERT(gc->heapState() == JS::HeapState::MajorCollecting);
 }
 
 JS_PUBLIC_API JS::HeapState JS::RuntimeHeapState() {
@@ -8446,9 +8399,6 @@ JS_PUBLIC_API void JS::IncrementalPreWriteBarrier(JSObject* obj) {
     return;
   }
 
-  AutoGeckoProfilerEntry profilingStackFrame(
-      TlsContext.get(), "IncrementalPreWriteBarrier(JSObject*)",
-      JS::ProfilingCategoryPair::GCCC_Barrier);
   JSObject::writeBarrierPre(obj);
 }
 
@@ -8457,9 +8407,6 @@ JS_PUBLIC_API void JS::IncrementalPreWriteBarrier(GCCellPtr thing) {
     return;
   }
 
-  AutoGeckoProfilerEntry profilingStackFrame(
-      TlsContext.get(), "IncrementalPreWriteBarrier(GCCellPtr)",
-      JS::ProfilingCategoryPair::GCCC_Barrier);
   TenuredCell::writeBarrierPre(&thing.asCell()->asTenured());
 }
 
